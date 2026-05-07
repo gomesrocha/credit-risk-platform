@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: credit-risk-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - credit_postgres_data:/var/lib/postgresql/data
+    networks:
+      - credit-risk-net
+
+  minio:
+    image: minio/minio:latest
+    container_name: credit-risk-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - credit_minio_data:/data
+    networks:
+      - credit-risk-net
+
+  minio-create-bucket:
+    image: minio/mc:latest
+    container_name: credit-risk-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until /usr/bin/mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do
+        echo 'Aguardando MinIO...';
+        sleep 2;
+      done;
+      /usr/bin/mc mb --ignore-existing local/${MINIO_BUCKET};
+      /usr/bin/mc anonymous set none local/${MINIO_BUCKET};
+      echo 'Bucket ${MINIO_BUCKET} pronto.';
+      exit 0;
+      "
+    networks:
+      - credit-risk-net
+
+volumes:
+  credit_postgres_data:
+  credit_minio_data:
+
+networks:
+  credit-risk-net:
+    driver: bridge
